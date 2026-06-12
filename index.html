@@ -272,6 +272,7 @@ body.fs-xlarge [style*="font-size:9px"]  { font-size:15px !important }
 .dark #rp-box{background:#141826}
 
 @keyframes slideUp{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}
+@keyframes calPop{from{opacity:0;transform:scale(.92) translateY(12px)}to{opacity:1;transform:none}}
 
 /* ── Quick Record FAB ── */
 #fab{position:fixed;bottom:120px;right:16px;width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#1e4d8c,#0a8f84);border:none;color:#fff;font-size:18px;cursor:grab;box-shadow:0 3px 12px rgba(30,77,140,.45);z-index:800;display:flex;align-items:center;justify-content:center;opacity:.85;transition:opacity .2s,transform .1s;user-select:none;-webkit-user-select:none;touch-action:none}
@@ -556,18 +557,19 @@ body.fs-xlarge [style*="font-size:9px"]  { font-size:15px !important }
 <!-- SCHEDULE (Google Calendar style) -->
 <div id="s-sched" class="sc">
   <div class="hdr" style="padding-bottom:10px">
-    <div style="display:flex;align-items:center;justify-content:space-between">
-      <div>
+    <div>
         <div style="font-size:10px;color:#7a8fa8;letter-spacing:3px;text-transform:uppercase;margin-bottom:2px">Daily Schedule</div>
         <div style="font-size:22px;color:#1e4d8c;font-weight:900">🗓️ 每日時程表</div>
       </div>
-      <div style="display:flex;gap:6px;align-items:center">
-        <button onclick="schedPrevDay()" style="background:#eaecf4;border:1px solid #d8dce8;border-radius:8px;padding:5px 10px;color:#4a5a72;font-size:18px;line-height:1;cursor:pointer">‹</button>
-        <div id="sched-date-lbl" style="font-size:14px;font-weight:700;color:#1e3252;min-width:110px;text-align:center"></div>
-        <button onclick="schedNextDay()" style="background:#eaecf4;border:1px solid #d8dce8;border-radius:8px;padding:5px 10px;color:#4a5a72;font-size:18px;line-height:1;cursor:pointer">›</button>
-        <button onclick="schedGoToday()" style="background:#e2f5f3;border:1.5px solid #0f9b8e;border-radius:8px;padding:5px 10px;color:#0a8f84;font-size:12px;font-weight:700;cursor:pointer">今日</button>
+      <div style="display:flex;gap:5px;align-items:center;position:relative;flex-wrap:wrap;justify-content:center;margin-top:10px">
+        <button onclick="schedPrevDay()" style="background:#eaecf4;border:1px solid #d8dce8;border-radius:8px;padding:5px 9px;color:#4a5a72;font-size:18px;line-height:1;cursor:pointer">‹</button>
+        <button onclick="schedOpenCalendar()" id="sched-date-btn" title="點此選擇日期" style="display:flex;align-items:center;gap:4px;background:#eef2f9;border:1px solid #c5d0e2;border-radius:8px;padding:5px 9px;cursor:pointer;min-width:118px;justify-content:center">
+          <span style="font-size:14px">📅</span>
+          <span id="sched-date-lbl" style="font-size:14px;font-weight:700;color:#1e3252"></span>
+        </button>
+        <button onclick="schedNextDay()" style="background:#eaecf4;border:1px solid #d8dce8;border-radius:8px;padding:5px 9px;color:#4a5a72;font-size:18px;line-height:1;cursor:pointer">›</button>
+        <button onclick="schedGoToday()" id="sched-today-btn" title="回到今天" style="background:#e2f5f3;border:1.5px solid #0f9b8e;border-radius:8px;padding:5px 9px;color:#0a8f84;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:3px"><span style="font-size:14px">📍</span>今日</button>
       </div>
-    </div>
   </div>
   <!-- Timeline body -->
   <div id="sched-wrap" style="position:relative;overflow-y:auto;height:calc(100vh - 160px);background:#fff;-webkit-overflow-scrolling:touch">
@@ -577,6 +579,10 @@ body.fs-xlarge [style*="font-size:9px"]  { font-size:15px !important }
   </div>
   <!-- Add event modal trigger -->
   <button onclick="schedOpenAdd()" style="position:fixed;bottom:80px;right:16px;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#1e4d8c,#0a8f84);border:none;color:#fff;font-size:26px;box-shadow:0 4px 16px rgba(30,77,140,.35);cursor:pointer;z-index:200;display:flex;align-items:center;justify-content:center;line-height:1" id="sched-fab" style2="right:auto;left:16px">＋</button>
+  <!-- Custom calendar popup -->
+  <div id="sched-cal-overlay" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:960;align-items:center;justify-content:center;backdrop-filter:blur(4px);padding:22px" onclick="if(event.target===this)schedCloseCalendar()">
+    <div id="sched-cal-card" style="background:#fff;width:100%;max-width:350px;border-radius:22px;padding:18px 18px 16px;box-shadow:0 24px 70px rgba(15,23,42,.4);animation:calPop .25s ease"></div>
+  </div>
 </div>
 
 <!-- SCHED ADD/EDIT MODAL -->
@@ -5644,6 +5650,70 @@ function schedRenderDateLabel(){
   var dt=new Date(_schedDate+'T00:00:00');
   var days=['日','一','二','三','四','五','六'];
   el.textContent=(dt.getMonth()+1)+'月'+dt.getDate()+'日 週'+days[dt.getDay()];
+  var isToday=_schedDate===tod();
+  // 不在今天時，「今日」鈕變亮提示可回到今天；在今天時則淡化
+  var tb=document.getElementById('sched-today-btn');
+  if(tb){tb.style.opacity=isToday?'.4':'1';tb.style.background=isToday?'#eef2f9':'#e2f5f3';tb.style.borderColor=isToday?'#c5d0e2':'#0f9b8e';tb.style.color=isToday?'#9aa6ba':'#0a8f84';}
+  // 日期鈕：非今天時加上「· 其他天」底色提示
+  var db=document.getElementById('sched-date-btn');
+  if(db)db.style.background=isToday?'#eef2f9':'#fff7e6';
+}
+
+// ── 專屬精美日曆 ──
+var _schedCalY, _schedCalM;
+function schedOpenCalendar(){
+  var d=new Date(_schedDate+'T00:00:00');
+  _schedCalY=d.getFullYear(); _schedCalM=d.getMonth();
+  schedCalRender();
+  var ov=document.getElementById('sched-cal-overlay'); if(ov)ov.style.display='flex';
+}
+function schedCloseCalendar(){
+  var ov=document.getElementById('sched-cal-overlay'); if(ov)ov.style.display='none';
+}
+function schedCalPrevMonth(){ _schedCalM--; if(_schedCalM<0){_schedCalM=11;_schedCalY--;} schedCalRender(); }
+function schedCalNextMonth(){ _schedCalM++; if(_schedCalM>11){_schedCalM=0;_schedCalY++;} schedCalRender(); }
+function schedCalPick(ds){ _schedDate=ds; schedRenderDateLabel(); schedRender(); schedCloseCalendar(); }
+function schedCalRender(){
+  var card=document.getElementById('sched-cal-card'); if(!card)return;
+  var y=_schedCalY, m=_schedCalM;
+  var startDow=new Date(y,m,1).getDay();
+  var daysInMonth=new Date(y,m+1,0).getDate();
+  var todayStr=tod();
+  var h='';
+  // 標頭：月份 + 月導覽
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">';
+  h+='<button onclick="schedCalPrevMonth()" style="width:36px;height:36px;border:none;border-radius:11px;background:#eef2f9;color:#1e4d8c;font-size:20px;line-height:1;cursor:pointer">‹</button>';
+  h+='<div style="font-size:19px;font-weight:800;color:#1e3252;letter-spacing:1px">'+y+'年 '+(m+1)+'月</div>';
+  h+='<button onclick="schedCalNextMonth()" style="width:36px;height:36px;border:none;border-radius:11px;background:#eef2f9;color:#1e4d8c;font-size:20px;line-height:1;cursor:pointer">›</button>';
+  h+='</div>';
+  // 星期列
+  var wk=['日','一','二','三','四','五','六'];
+  h+='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:6px">';
+  wk.forEach(function(w,i){ h+='<div style="text-align:center;font-size:12px;font-weight:700;color:'+(i===0?'#d9534f':i===6?'#0a8f84':'#9aa6ba')+';padding:4px 0">'+w+'</div>'; });
+  h+='</div>';
+  // 日期格
+  h+='<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">';
+  for(var i=0;i<startDow;i++) h+='<div></div>';
+  for(var dd=1;dd<=daysInMonth;dd++){
+    var ds=y+'-'+_pad(m+1)+'-'+_pad(dd);
+    var isToday=ds===todayStr, isSel=ds===_schedDate;
+    var hasEv=(schedLoad(ds)||[]).length>0;
+    var bg=isSel?'linear-gradient(135deg,#1e4d8c,#0a8f84)':(isToday?'#e2f5f3':'transparent');
+    var col=isSel?'#fff':(isToday?'#0a8f84':'#2a3850');
+    var ring=(isToday&&!isSel)?'box-shadow:inset 0 0 0 2px #0f9b8e;':'';
+    var shadow=isSel?'box-shadow:0 4px 12px rgba(30,77,140,.35);':'';
+    h+='<button onclick="schedCalPick(\''+ds+'\')" style="position:relative;aspect-ratio:1;min-height:40px;border:none;border-radius:50%;background:'+bg+';'+ring+shadow+'color:'+col+';font-size:16px;font-weight:'+(isSel||isToday?'800':'600')+';cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .1s">'+dd;
+    if(hasEv) h+='<span style="position:absolute;bottom:5px;left:50%;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:'+(isSel?'#ffe08a':'#bf8f00')+'"></span>';
+    h+='</button>';
+  }
+  h+='</div>';
+  // 圖例 + 底部按鈕
+  h+='<div style="display:flex;align-items:center;gap:5px;margin-top:12px;font-size:11px;color:#9aa6ba"><span style="width:6px;height:6px;border-radius:50%;background:#bf8f00;display:inline-block"></span>有安排行程的日子</div>';
+  h+='<div style="display:flex;gap:8px;margin-top:10px">';
+  h+='<button onclick="schedCalPick(\''+todayStr+'\')" style="flex:1;padding:12px;border:1.5px solid #0f9b8e;border-radius:13px;background:#e2f5f3;color:#0a8f84;font-size:15px;font-weight:700;cursor:pointer">📍 回到今天</button>';
+  h+='<button onclick="schedCloseCalendar()" style="padding:12px 20px;border:1px solid #d8dce8;border-radius:13px;background:#f4f6fa;color:#7a8fa8;font-size:15px;font-weight:600;cursor:pointer">關閉</button>';
+  h+='</div>';
+  card.innerHTML=h;
 }
 
 function schedPrevDay(){
@@ -6529,7 +6599,7 @@ function schedRefreshRepPicker(){
    3) 把 VERSION_CHECK_URL 填成那個 version.json 的網址
    舊版使用者一開啟 App（有網路時）就會看到更新橫幅。
    ============================================================ */
-var APP_VERSION = "1.2.4";        /* ★ 每次發佈新版請往上加 */
+var APP_VERSION = "1.2.6";        /* ★ 每次發佈新版請往上加 */
 var VERSION_CHECK_URL = "https://spch321-sudo.github.io/321planner/version.json";       /* ★ 你的 version.json 網址 */
 var _updateInfo = null;
 function checkAppUpdate(){
